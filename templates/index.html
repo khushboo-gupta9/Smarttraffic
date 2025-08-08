@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Smart Traffic Management System</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <h1>🚦 Smart Traffic Management System</h1>
+    <p>Welcome, {{ username }}</p>
+
+    <div class="mode-control">
+      <button class="mode" data-mode="manual">Manual</button>
+      <button class="mode active" data-mode="auto">Auto</button>
+      <button class="mode" data-mode="emergency">Emergency</button>
+    </div>
+
+    <div class="grid">
+      <div class="signal-box" id="north">
+        <h2>North</h2>
+        <div class="light red"></div>
+      </div>
+      <div class="signal-box" id="south">
+        <h2>South</h2>
+        <div class="light green"></div>
+      </div>
+      <div class="signal-box" id="west">
+        <h2>West</h2>
+        <div class="light yellow"></div>
+      </div>
+      <div class="signal-box" id="east">
+        <h2>East</h2>
+        <div class="light red"></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="start">Start System</button>
+      <button class="stop">Stop System</button>
+      <button class="emergency">Detect Emergency</button>
+      <button class="siren">Siren Detected</button>
+      <p>Manual Timer: <input type="range" min="5" max="60" value="15"> <span>15s</span></p>
+      <p>Countdown: <span id="countdown">--</span> seconds</p>
+      <p>Density: <strong>High</strong> | Ambulance: <span>🚑 Detected</span></p>
+    </div>
+
+    <div class="camera-container">
+      <h2>Live Camera Feed</h2>
+      <video id="video" width="640" height="480" autoplay></video>
+      <button id="captureBtn">Capture Photo</button>
+
+      <!-- 🔊 Added Traffic Light Sounds -->
+      <audio id="redSound" src="/static/red.mp3"></audio>
+      <audio id="yellowSound" src="/static/yellow.mp3"></audio>
+      <audio id="greenSound" src="/static/green.mp3"></audio>
+
+      <audio id="sirenSound" src="/static/siren.mp3"></audio>
+    </div>
+  </div>
+  <script src="/static/script.js"></script>
+</body>
+</html>

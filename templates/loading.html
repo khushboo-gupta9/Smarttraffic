@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Loading</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='login.css') }}">
+    <script>
+        let load = 0;
+        function animateLoading() {
+            let progress = document.getElementById("progress");
+            let percent = document.getElementById("percent");
+
+            let interval = setInterval(() => {
+                if (load >= 100) {
+                    clearInterval(interval);
+                    window.location.href = "/index";
+                } else {
+                    load++;
+                    progress.style.width = load + "%";
+                    percent.innerText = "Loading.. " + load + "%";
+                }
+            }, 30);
+        }
+        window.onload = animateLoading;
+    </script>
+    <style>
+        .loading-container {
+            text-align: center;
+            margin-top: 40px;
+        }
+        .loading-image {
+            width: 800px; /* Image size aur bada */
+            max-width: 100%; /* Mobile pe adjust */
+            margin-bottom: 25px;
+        }
+    </style>
+</head>
+<body class="login-body">
+    <div class="loading-container">
+        <h2 style="color:white; font-size:28px;">🚦 Smart Traffic System</h2>
+        <img src="{{ url_for('static', filename='traffic.jpg') }}" class="loading-image">
+        <p id="percent" style="color:white; font-size:22px;">Loading.. 0%</p>
+        <div style="background:#ccc; width:80%; height:22px; border-radius:10px; margin:auto;">
+            <div id="progress" style="height:100%; width:0; background:green; border-radius:10px;"></div>
+        </div>
+    </div>
+</body>
+</html>
