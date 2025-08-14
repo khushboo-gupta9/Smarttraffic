@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Camera • License Scan (On-device)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    /* small page-specific polish */
+    .cam-wrap{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;margin-top:16px}
+    .preview{background:#000;border-radius:12px;overflow:hidden;aspect-ratio:16/10;display:flex;align-items:center;justify-content:center}
+    video{width:100%;height:100%;object-fit:cover}
+    .snap{display:flex;gap:10px;align-items:center;margin-top:10px}
+    .snap button{padding:10px 14px;border:none;border-radius:10px;color:#fff;cursor:pointer;font-weight:700}
+    .btn-capture{background:#2563eb}.btn-scan{background:#22c55e}.btn-stop{background:#ef4444}
+    .result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+    .kv{display:flex;justify-content:space-between;border-bottom:1px dashed #e5e7eb;padding:6px 0}
+    .muted{color:#6b7280}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace}
+    .pill{padding:2px 10px;border-radius:999px;background:#eef2ff;color:#1d4ed8;font-size:.8rem}
+    .hide{display:none}
+    canvas{max-width:100%;border-radius:10px;border:1px solid #e5e7eb}
+    img.license-preview{max-width:100%;border-radius:8px;border:1px solid #e5e7eb;margin-top:12px}
+    @media(max-width:900px){.cam-wrap{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <h2 class="logo">🚦 Smart Traffic</h2>
+  <ul>
+    <li><a href="{{ url_for('index') }}">📊 Dashboard</a></li>
+    <li><a href="{{ url_for('manual') }}">📷 Camera Control</a></li>
+    <li><a href="{{ url_for('auto') }}">⚙ Auto Mode</a></li>
+    <li><a href="{{ url_for('emergency') }}">🚨 Emergency</a></li>
+    <li class="active"><a href="{{ url_for('manual') }}">📷 Camera</a></li>
+    <li><a href="{{ url_for('settings') }}">⚡ Settings</a></li>
+  </ul>
+</nav>
+
+<!-- Main -->
+<div class="main">
+  <header class="header">
+    <h1>Camera — License Scan</h1>
+    <div class="header-right">
+      <span class="pill">On-device OCR</span>
+      <span style="margin-left:12px;color:#6b7280;font-size:.9rem">User: {{ username }}</span>
+    </div>
+  </header>
+
+  <div class="cam-wrap">
+    <!-- LEFT: Live camera + capture -->
+    <div class="card">
+      <h2>Live Feed</h2>
+      <div class="preview">
+        <video id="video" autoplay playsinline></video>
+      </div>
+      <div class="snap">
+        <button class="btn-capture" id="btnStart">Start Camera</button>
+        <button class="btn-stop" id="btnStop" disabled>Stop</button>
+        <button class="btn-scan" id="btnSnap" disabled>Capture & Scan</button>
+        <span class="muted">Tip: License ko frame me seedha rakho.</span>
+      </div>
+      <div style="margin-top:10px">
+        <canvas id="canvas" class="hide"></canvas>
+      </div>
+
+      <div id="licenseContainer" style="margin-top:12px">
+        <h4 style="margin-bottom:8px">Generated License (Demo)</h4>
+        <img id="licenseImg" class="license-preview hide" alt="Generated License">
+      </div>
+    </div>
+
+    <!-- RIGHT: Results -->
+    <div class="card">
+      <h2>Extracted Details</h2>
+      <div class="result-grid">
+        <div>
+          <div class="kv"><span>DL Number</span><b class="mono" id="dlno">—</b></div>
+          <div class="kv"><span>Date of Birth</span><b class="mono" id="dob">—</b></div>
+          <div class="kv"><span>Name (raw)</span><b class="mono" id="name">—</b></div>
+        </div>
+        <div>
+          <div class="kv"><span>Issue/Validity (raw)</span><b class="mono" id="valid">—</b></div>
+          <div class="kv"><span>Confidence</span><b id="conf">—</b></div>
+        </div>
+      </div>
+
+      <div style="margin-top:10px">
+        <button class="mode-btn manual" id="btnDownload" disabled>Download CSV</button>
+        <button class="emergency-btn" id="btnToggleRaw" disabled>Show Raw Text</button>
+      </div>
+
+      <pre id="raw" class="mono hide" style="margin-top:12px;white-space:pre-wrap"></pre>
+
+      <p class="muted" style="margin-top:12px">
+        ⚠️ <b>Privacy:</b> OCR browser ke andar hota hai. Image server pe tab jayegi jab aap capture karoge (demo save).
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const btnStart = document.getElementById('btnStart');
+  const btnStop  = document.getElementById('btnStop');
+  const btnSnap  = document.getElementById('btnSnap');
+  const btnCSV   = document.getElementById('btnDownload');
+  const btnRaw   = document.getElementById('btnToggleRaw');
+  const rawPre   = document.getElementById('raw');
+  const licenseImg = document.getElementById('licenseImg');
+  let stream;
+
+  btnStart.onclick = async () => {
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      video.srcObject = stream;
+      btnStart.disabled = true;
+      btnStop.disabled = false;
+      btnSnap.disabled = false;
+    }catch(e){
+      alert('Camera access blocked. Please allow permission.');
+    }
+  };
+
+  btnStop.onclick = () => {
+    stream?.getTracks().forEach(t=>t.stop());
+    video.srcObject = null;
+    btnStart.disabled = false;
+    btnStop.disabled  = true;
+    btnSnap.disabled  = true;
+  };
+
+  async function runOCR(image){
+    const { data } = await Tesseract.recognize(image, 'eng', { logger: m => { /* optional */ } });
+    return { text: data.text, conf: Math.round(data.confidence) };
+  }
+
+  // Upload image to backend (save + face detect + license create)
+  async function uploadCapturedImage(canvas) {
+    const dataURL = canvas.toDataURL('image/png');
+    try {
+      const res = await fetch('/save_image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataURL })
+      });
+      const j = await res.json();
+      if (j.status === 'ok') {
+        // show license image
+        const licenseUrl = `/captured_images/${j.license_filename}`;
+        licenseImg.src = licenseUrl + '?t=' + Date.now();
+        licenseImg.classList.remove('hide');
+        return j;
+      } else {
+        alert("Server error: " + (j.message || 'unknown'));
+        return j;
+      }
+    } catch (err){
+      console.error('Error saving image', err);
+      alert('Server error while saving image.');
+      return { status: 'error' };
+    }
+  }
+
+  btnSnap.onclick = async () => {
+    const w = video.videoWidth, h = video.videoHeight;
+    if(!w || !h){ alert('Camera not ready'); return; }
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, w, h);
+
+    btnSnap.disabled = true;
+    btnSnap.textContent = 'Processing...';
+
+    try{
+      // 1) OCR (optional) — keep existing behavior
+      const { text, conf } = await runOCR(canvas);
+      // parse lightly (same as before)
+      const cleaned = text.replace(/\s+/g,' ').toUpperCase();
+      const dlMatch = cleaned.match(/\b([A-Z]{2}[-\s]?\d{2}[-\s]?\d{4,12})\b/);
+      const dobMatch = cleaned.match(/\b(\d{2}[\/-]\d{2}[\/-]\d{4})\b/);
+      const nm = cleaned.match(/NAME[:\s-]*([A-Z\s\.]{3,40})/);
+      document.getElementById('dlno').textContent = dlMatch ? dlMatch[1].replace(/\s|-/g,'') : '—';
+      document.getElementById('dob').textContent  = dobMatch ? dobMatch[1] : '—';
+      document.getElementById('name').textContent = nm ? nm[1].trim() : '—';
+      document.getElementById('valid').textContent= '—';
+      document.getElementById('conf').textContent = conf + '%';
+      rawPre.textContent = text;
+      btnCSV.disabled = false;
+      btnRaw.disabled = false;
+
+      // 2) Upload to backend to save + detect face + create mock license
+      const result = await uploadCapturedImage(canvas);
+      if (result.status === 'ok') {
+        if (result.face_found) {
+          alert('Face detected — mock license created.');
+        } else {
+          alert('No clear face detected — mock license still created using full image.');
+        }
+      }
+    }catch(e){
+      console.error(e);
+      alert('Processing failed. Try again with better lighting/focus.');
+    }finally{
+      btnSnap.disabled = false;
+      btnSnap.textContent = 'Capture & Scan';
+    }
+  };
+
+  btnRaw.onclick = ()=>{
+    rawPre.classList.toggle('hide');
+    btnRaw.textContent = rawPre.classList.contains('hide') ? 'Show Raw Text' : 'Hide Raw Text';
+  };
+
+  btnCSV.onclick = ()=>{
+    const rows = [
+      ['field','value'],
+      ['dl_number', document.getElementById('dlno').textContent],
+      ['dob', document.getElementById('dob').textContent],
+      ['name_raw', document.getElementById('name').textContent],
+      ['validity_raw', document.getElementById('valid').textContent],
+      ['confidence', document.getElementById('conf').textContent]
+    ];
+    const csv = rows.map(r=>r.join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'license-scan.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+</script>
+</body>
+</html>

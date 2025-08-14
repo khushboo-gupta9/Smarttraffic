@@ -1,65 +1,133 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Smart Traffic Management System</title>
-  <link rel="stylesheet" href="/static/style.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet">
+  <title>Smart Traffic Dashboard</title>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&family=Orbitron:wght@500&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+
+  <!-- Charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <div class="container">
-    <h1>🚦 Smart Traffic Management System</h1>
-    <p>Welcome, {{ username }}</p>
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <h2 class="logo">🚦 Smart Traffic</h2>
+    <ul>
+      <li class="active"><a href="#">📊 Dashboard</a></li>
+     <li><a href="camera.html">📷 Camera Control</a></li>
 
-    <div class="mode-control">
-      <button class="mode" data-mode="manual">Manual</button>
-      <button class="mode active" data-mode="auto">Auto</button>
-      <button class="mode" data-mode="emergency">Emergency</button>
-    </div>
+      <li><a href="auto.html">⚙ Auto Mode</a></li>
+      <li><a href="emergency.html">🚨 Emergency</a></li>
+      <li><a href="setting.html">⚡ Settings</a></li>
+    </ul>
+  </nav>
 
-    <div class="grid">
-      <div class="signal-box" id="north">
-        <h2>North</h2>
+  <!-- Main -->
+  <div class="main">
+    <header class="header">
+      <h1>Dashboard</h1>
+      <div class="header-right">
+        <span class="date">--/--/----</span>
+        <span class="time">--:--</span>
+        <span class="weather-pill" id="weather-pill">☀ Clear</span>
+
+        <button id="btn-fullscreen" class="icon-btn" title="Fullscreen">⛶</button>
+        <button id="btn-theme" class="icon-btn" title="Toggle Dark Mode">🌙</button>
+        <button id="btn-export" class="icon-btn" title="Download CSV">⬇</button>
+
+        <span class="notif" id="notif">🔔</span>
+        <span class="user">👤 Admin</span>
+      </div>
+    </header>
+
+    <!-- Traffic Light & Controls -->
+    <section class="traffic-container">
+      <div class="direction-label">Current Direction: <b id="direction">North</b></div>
+
+      <div class="traffic-light">
         <div class="light red"></div>
-      </div>
-      <div class="signal-box" id="south">
-        <h2>South</h2>
-        <div class="light green"></div>
-      </div>
-      <div class="signal-box" id="west">
-        <h2>West</h2>
         <div class="light yellow"></div>
+        <div class="light green active"></div>
       </div>
-      <div class="signal-box" id="east">
-        <h2>East</h2>
-        <div class="light red"></div>
-      </div>
-    </div>
+
+      <div class="signal-display" id="countdown">0:15</div>
+    </section>
 
     <div class="controls">
-      <button class="start">Start System</button>
-      <button class="stop">Stop System</button>
-      <button class="emergency">Detect Emergency</button>
-      <button class="siren">Siren Detected</button>
-      <p>Manual Timer: <input type="range" min="5" max="60" value="15"> <span>15s</span></p>
-      <p>Countdown: <span id="countdown">--</span> seconds</p>
-      <p>Density: <strong>High</strong> | Ambulance: <span>🚑 Detected</span></p>
+      <button class="mode-btn auto" id="btn-auto">Auto</button>
+      <button class="mode-btn manual" id="btn-manual">Manual</button>
+      <button class="emergency-btn" id="btn-emergency">Emergency</button>
     </div>
 
-    <div class="camera-container">
-      <h2>Live Camera Feed</h2>
-      <video id="video" width="640" height="480" autoplay></video>
-      <button id="captureBtn">Capture Photo</button>
+    <!-- Smart Status Row -->
+    <div class="smart-row">
+      <div class="smart-pill" id="peak-pill">⏫ Peak Hour: <b>Auto</b></div>
+      <div class="smart-pill" id="priority-pill">🚑 Priority Vehicle: <b>None</b></div>
+      <div class="smart-pill" id="weather-pill-2">🌦 Weather Control: <b>Off</b></div>
+      <div class="smart-pill" id="accident-pill">⚠ Accident Alerts: <b>0</b></div>
+    </div>
 
-      <!-- 🔊 Added Traffic Light Sounds -->
-      <audio id="redSound" src="/static/red.mp3"></audio>
-      <audio id="yellowSound" src="/static/yellow.mp3"></audio>
-      <audio id="greenSound" src="/static/green.mp3"></audio>
+    <!-- Cards -->
+    <div class="cards-grid">
+      <div class="card">
+        <h2>Current Traffic Status</h2>
+        <ul class="status-lights">
+          <li>🔴 Red: <span id="red-time">--</span>s</li>
+          <li>🟡 Yellow: <span id="yellow-time">--</span>s</li>
+          <li>🟢 Green: <span id="green-time">--</span>s</li>
+        </ul>
+      </div>
 
-      <audio id="sirenSound" src="/static/siren.mp3"></audio>
+      <div class="card">
+        <h2>Traffic Density (live)</h2>
+        <canvas id="densityChart" height="140"></canvas>
+      </div>
+
+      <div class="card">
+        <h2>Prediction — Next 10 min</h2>
+        <canvas id="predictChart" height="140"></canvas>
+      </div>
+
+      <div class="card">
+        <h2>Mini Map View</h2>
+        <!-- Simple SVG intersection map -->
+        <div class="mini-map">
+          <svg viewBox="0 0 200 200">
+            <!-- Roads -->
+            <rect x="90" y="0" width="20" height="200" class="road"/>
+            <rect x="0" y="90" width="200" height="20" class="road"/>
+            <!-- Direction arrows -->
+            <polygon id="arrow-n" points="100,20 95,35 105,35" class="arrow"/>
+            <polygon id="arrow-e" points="180,100 165,95 165,105" class="arrow"/>
+            <polygon id="arrow-s" points="100,180 95,165 105,165" class="arrow"/>
+            <polygon id="arrow-w" points="20,100 35,95 35,105" class="arrow"/>
+          </svg>
+        </div>
+        <small class="muted">Active direction glows.</small>
+      </div>
+
+      <div class="card alert-card">
+        <h2>Recent Alerts</h2>
+        <ul id="alert-list">
+          <li>No alerts yet.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>System Health</h2>
+        <p>All sensors and cameras are operational.</p>
+        <p>Total Signals: <b id="total-signals">4 active</b></p>
+      </div>
     </div>
   </div>
-  <script src="/static/script.js"></script>
+
+  <!-- Scripts -->
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

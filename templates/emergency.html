@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency Mode - Smart Traffic Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="static/style.css">
+    <style>
+        body { font-family: 'Poppins', sans-serif; margin: 0; background: #f4f6f8; }
+        .main { padding: 20px; margin-left: 220px; }
+        .header { background: #1e3a8a; padding: 15px; color: white; border-radius: 8px; }
+        .card { background: white; padding: 15px; border-radius: 8px; margin-top: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .vehicle-list { margin-top: 10px; }
+        .vehicle { padding: 10px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; }
+        .timer { font-size: 24px; font-weight: bold; color: #1e3a8a; }
+        .log { max-height: 200px; overflow-y: auto; background: #f9fafb; padding: 10px; border-radius: 5px; }
+        .signal-status { display: flex; gap: 10px; margin-top: 15px; }
+        .signal { flex: 1; padding: 10px; background: #e5e7eb; border-radius: 5px; text-align: center; font-weight: bold; }
+        .green { background: #16a34a; color: white; }
+        .red { background: #dc2626; color: white; }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+    <h2 class="logo">🚦 Smart Traffic</h2>
+    <ul>
+        <li><a href="index.html">📊 Dashboard</a></li>
+        <li><a href="camera.html">📷 Camera Control</a></li>
+        <li><a href="auto.html">⚙ Auto Mode</a></li>
+        <li class="active"><a href="emergency.html">🚨 Emergency</a></li>
+        <li><a href="setting.html">⚡ Settings</a></li>
+    </ul>
+</nav>
+
+<!-- Main Content -->
+<div class="main">
+    <header class="header">
+        <h1>🚨 Emergency Mode</h1>
+        <p>Priority green light for detected emergency vehicles (Auto Detection)</p>
+    </header>
+
+    <!-- Countdown -->
+    <div class="card">
+        <h2>Status</h2>
+        <p class="timer" id="countdown">Waiting for emergency vehicle...</p>
+    </div>
+
+    <!-- Live Detected Vehicles -->
+    <div class="card">
+        <h2>Live Detected Emergency Vehicle</h2>
+        <div class="vehicle-list" id="vehicleList">
+            <p>No emergency vehicles detected.</p>
+        </div>
+    </div>
+
+    <!-- Signal Status -->
+    <div class="card">
+        <h2>Traffic Signal Status</h2>
+        <div class="signal-status" id="signalStatus">
+            <div class="signal red">North: Red</div>
+            <div class="signal red">East: Red</div>
+            <div class="signal red">South: Red</div>
+            <div class="signal red">West: Red</div>
+        </div>
+    </div>
+
+    <!-- Event Log -->
+    <div class="card">
+        <h2>Emergency Event Log</h2>
+        <div class="log" id="eventLog">
+            <p>No events yet.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+let timerInterval;
+const vehicles = ["Ambulance", "Fire Truck", "Police"];
+const routes = ["North", "East", "South", "West"];
+
+function getVehicleIcon(type) {
+    switch(type) {
+        case "Ambulance": return "🚑";
+        case "Fire Truck": return "🚒";
+        case "Police": return "🚓";
+        default: return "🚗";
+    }
+}
+
+function addVehicle(type, location, eta) {
+    document.getElementById("vehicleList").innerHTML = `
+        <div class="vehicle">
+            <span>${getVehicleIcon(type)} ${type} - ${location}</span>
+            <span>${eta}</span>
+        </div>
+    `;
+}
+
+function startCountdown(seconds, callback) {
+    let remaining = seconds;
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        document.getElementById("countdown").textContent = `Emergency Mode Active - ${remaining}s remaining`;
+        remaining--;
+        if (remaining < 0) {
+            clearInterval(timerInterval);
+            callback();
+        }
+    }, 1000);
+}
+
+function logEvent(message) {
+    let logDiv = document.getElementById("eventLog");
+    let time = new Date().toLocaleTimeString();
+    logDiv.innerHTML = `<p>[${time}] ${message}</p>` + logDiv.innerHTML;
+}
+
+function updateSignals(priority) {
+    const directions = ["North", "East", "South", "West"];
+    let statusHTML = "";
+    directions.forEach(dir => {
+        if (dir === priority) {
+            statusHTML += `<div class="signal green">${dir}: Green</div>`;
+        } else {
+            statusHTML += `<div class="signal red">${dir}: Red</div>`;
+        }
+    });
+    document.getElementById("signalStatus").innerHTML = statusHTML;
+}
+
+function resetSignals() {
+    document.getElementById("signalStatus").innerHTML = routes.map(dir => 
+        `<div class="signal red">${dir}: Red</div>`
+    ).join('');
+    document.getElementById("vehicleList").innerHTML = "<p>No emergency vehicles detected.</p>";
+    document.getElementById("countdown").textContent = "Waiting for emergency vehicle...";
+}
+
+function detectEmergency() {
+    // Randomly pick vehicle and route
+    const type = vehicles[Math.floor(Math.random() * vehicles.length)];
+    const route = routes[Math.floor(Math.random() * routes.length)];
+    const eta = "ETA: 30s";
+
+    addVehicle(type, route + " Road", eta);
+    updateSignals(route);
+    logEvent(`Emergency Mode Activated - ${type} detected at ${route} Road`);
+
+    startCountdown(30, () => {
+        logEvent("Emergency Mode Deactivated");
+        resetSignals();
+    });
+}
+
+// Run detection automatically every 40 seconds
+setInterval(() => {
+    detectEmergency();
+}, 40000);
+
+// First detection after 5 sec
+setTimeout(() => {
+    detectEmergency();
+}, 5000);
+</script>
+
+</body>
+</html>
