@@ -1,38 +1,172 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings - Smart Traffic Control</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="static/style.css">
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Settings - Smart Traffic</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <style>
+    .grid { display:grid; grid-template-columns: repeat(2, minmax(260px, 1fr)); gap:16px; }
+    .form-card{ background:#fff; padding:16px; border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,.08);}
+    .row{ display:flex; align-items:center; justify-content:space-between; margin:10px 0;}
+    .row input[type="number"]{ width:90px; padding:6px 8px; border:1px solid #e5e7eb; border-radius:8px;}
+    .row input[type="checkbox"]{ transform:scale(1.2); }
+    .row input[type="range"]{ width:160px; }
+    .btn { padding:10px 16px; border-radius:10px; border:none; cursor:pointer; font-weight:600; }
+    .primary { background:#1e3a8a; color:#fff; }
+    .ghost { background:#eef2ff; color:#1e3a8a; }
+    .muted { color:#6b7280; font-size:14px; }
+    .ok { color:#16a34a; font-weight:600; margin-left:8px;}
+  </style>
 </head>
 <body>
 
-<!-- Sidebar -->
 <nav class="sidebar">
-    <h2 class="logo">🚦 Smart Traffic</h2>
-    <ul>
-        <li><a href="index.html">📊 Dashboard</a></li>
-       <li><a href="camera.html">📷 Camera Control</a></li>
-
-        <li><a href="auto.html">⚙ Auto Mode</a></li>
-        <li><a href="emergency.html">🚨 Emergency</a></li>
-        <li class="active"><a href="setting.html">⚡ Settings</a></li>
-    </ul>
+  <h2 class="logo">🚦 Smart Traffic</h2>
+  <ul>
+    <li><a href="{{ url_for('index') }}">📊 Dashboard</a></li>
+    <li><a href="{{ url_for('manual') }}">📷 Camera Control</a></li>
+    <li><a href="{{ url_for('auto') }}">⚙ Auto Mode</a></li>
+    <li><a href="{{ url_for('emergency') }}">🚨 Emergency</a></li>
+    <li class="active"><a href="{{ url_for('manual') }}">📷 Camera</a></li>
+    <li><a href="{{ url_for('settings') }}">⚡ Settings</a></li>
+  </ul>
 </nav>
 
-<!-- Main Content -->
-<div class="main">
-    <header class="header">
-        <h1>Settings</h1>
-    </header>
 
-    <div class="card">
-        <h2>System Configuration</h2>
-        <p>Adjust timing, modes, and other preferences.</p>
+<div class="main">
+  <header class="header">
+    <h1>Settings</h1>
+    <p class="muted">Tune timings & behaviour for Auto Mode.</p>
+  </header>
+
+  <div class="grid">
+    <div class="form-card">
+      <h3>General</h3>
+      <div class="row">
+        <label>Auto Mode Enabled</label>
+        <input type="checkbox" id="autoEnabled">
+      </div>
+      <div class="row">
+        <label>Use Simulated Sensors</label>
+        <input type="checkbox" id="useSimulatedSensors">
+      </div>
     </div>
+
+    <div class="form-card">
+      <h3>Signal Timings</h3>
+      <div class="row">
+        <label>Base Green (s)</label>
+        <input type="number" id="baseGreen" min="5" max="60" step="1">
+      </div>
+      <div class="row">
+        <label>Min Green (s)</label>
+        <input type="number" id="minGreen" min="3" max="60" step="1">
+      </div>
+      <div class="row">
+        <label>Max Green (s)</label>
+        <input type="number" id="maxGreen" min="5" max="90" step="1">
+      </div>
+      <div class="row">
+        <label>Yellow Time (s)</label>
+        <input type="number" id="yellowTime" min="2" max="10" step="1">
+      </div>
+    </div>
+
+    <div class="form-card">
+      <h3>Density Sensitivity</h3>
+      <div class="row" style="flex-direction:column; align-items:flex-start;">
+        <label class="muted" style="margin-bottom:6px;">How strongly density affects green time</label>
+        <input type="range" id="densitySensitivity" min="0" max="1" step="0.05" />
+        <div class="muted">Low ←→ High</div>
+      </div>
+    </div>
+
+    <div class="form-card">
+      <h3>Actions</h3>
+      <div class="row" style="gap:10px;">
+        <button class="btn primary" id="btnSave">Save Settings</button>
+        <button class="btn ghost" id="btnReset">Reset Defaults</button>
+        <span id="saveMsg" class="ok" style="display:none;">Saved ✔</span>
+      </div>
+      <p class="muted">Settings are saved in your browser and used by Auto Mode.</p>
+    </div>
+  </div>
 </div>
+
+<script>
+const DEFAULTS = {
+  autoEnabled: true,
+  baseGreen: 12,
+  maxGreen: 35,
+  minGreen: 8,
+  yellowTime: 3,
+  densitySensitivity: 0.6,
+  useSimulatedSensors: true
+};
+function load(){
+  try{ return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('st_settings')||'{}')); }
+  catch(e){ return DEFAULTS; }
+}
+function save(values){
+  localStorage.setItem('st_settings', JSON.stringify(values));
+}
+
+const s = load();
+const els = {
+  autoEnabled: document.getElementById('autoEnabled'),
+  useSimulatedSensors: document.getElementById('useSimulatedSensors'),
+  baseGreen: document.getElementById('baseGreen'),
+  minGreen: document.getElementById('minGreen'),
+  maxGreen: document.getElementById('maxGreen'),
+  yellowTime: document.getElementById('yellowTime'),
+  densitySensitivity: document.getElementById('densitySensitivity'),
+  saveMsg: document.getElementById('saveMsg'),
+  btnSave: document.getElementById('btnSave'),
+  btnReset: document.getElementById('btnReset'),
+};
+function render(){
+  els.autoEnabled.checked = s.autoEnabled;
+  els.useSimulatedSensors.checked = s.useSimulatedSensors;
+  els.baseGreen.value = s.baseGreen;
+  els.minGreen.value = s.minGreen;
+  els.maxGreen.value = s.maxGreen;
+  els.yellowTime.value = s.yellowTime;
+  els.densitySensitivity.value = s.densitySensitivity;
+}
+render();
+
+els.btnSave.onclick = ()=>{
+  const values = {
+    autoEnabled: els.autoEnabled.checked,
+    useSimulatedSensors: els.useSimulatedSensors.checked,
+    baseGreen: parseInt(els.baseGreen.value||DEFAULTS.baseGreen),
+    minGreen: parseInt(els.minGreen.value||DEFAULTS.minGreen),
+    maxGreen: parseInt(els.maxGreen.value||DEFAULTS.maxGreen),
+    yellowTime: parseInt(els.yellowTime.value||DEFAULTS.yellowTime),
+    densitySensitivity: parseFloat(els.densitySensitivity.value||DEFAULTS.densitySensitivity)
+  };
+  // guard: min <= base <= max
+  if(values.minGreen > values.maxGreen){
+    const t = values.minGreen; values.minGreen = values.maxGreen; values.maxGreen = t;
+  }
+  if(values.baseGreen < values.minGreen) values.baseGreen = values.minGreen;
+  if(values.baseGreen > values.maxGreen) values.baseGreen = values.maxGreen;
+
+  save(values);
+  els.saveMsg.style.display='inline';
+  setTimeout(()=> els.saveMsg.style.display='none', 1200);
+};
+
+els.btnReset.onclick = ()=>{
+  save(DEFAULTS);
+  Object.assign(s, DEFAULTS);
+  render();
+  els.saveMsg.style.display='inline';
+  setTimeout(()=> els.saveMsg.style.display='none', 1200);
+};
+</script>
 
 </body>
 </html>

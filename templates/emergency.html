@@ -39,7 +39,7 @@
 <div class="main">
     <header class="header">
         <h1>🚨 Emergency Mode</h1>
-        <p>Priority green light for detected emergency vehicles (Auto Detection)</p>
+        <p>Priority green light for detected emergency vehicles (Voice or Auto Detection)</p>
     </header>
 
     <!-- Countdown -->
@@ -139,12 +139,17 @@ function resetSignals() {
     document.getElementById("countdown").textContent = "Waiting for emergency vehicle...";
 }
 
+function playSiren() {
+    const audio = new Audio('static/siren.mp3');
+    audio.play();
+}
+
 function detectEmergency() {
-    // Randomly pick vehicle and route
     const type = vehicles[Math.floor(Math.random() * vehicles.length)];
     const route = routes[Math.floor(Math.random() * routes.length)];
     const eta = "ETA: 30s";
 
+    playSiren();
     addVehicle(type, route + " Road", eta);
     updateSignals(route);
     logEvent(`Emergency Mode Activated - ${type} detected at ${route} Road`);
@@ -155,12 +160,41 @@ function detectEmergency() {
     });
 }
 
-// Run detection automatically every 40 seconds
+// Voice Detection
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = function(event) {
+        const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
+        console.log("Voice detected:", transcript);
+        if (transcript.includes("siren") || transcript.includes("ambulance") || transcript.includes("fire truck") || transcript.includes("police")) {
+            logEvent("Voice detected: Emergency vehicle siren!");
+            detectEmergency();
+        }
+    };
+
+    recognition.onerror = function(event) {
+        console.error("Speech recognition error:", event.error);
+    };
+
+    recognition.onend = function() {
+        recognition.start(); // continuous listening
+    };
+
+    recognition.start();
+} else {
+    console.warn("Browser does not support voice recognition. Using automatic detection.");
+}
+
+// Fallback random detection
 setInterval(() => {
     detectEmergency();
 }, 40000);
 
-// First detection after 5 sec
 setTimeout(() => {
     detectEmergency();
 }, 5000);

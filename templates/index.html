@@ -20,8 +20,7 @@
     <h2 class="logo">🚦 Smart Traffic</h2>
     <ul>
       <li class="active"><a href="#">📊 Dashboard</a></li>
-     <li><a href="camera.html">📷 Camera Control</a></li>
-
+      <li><a href="camera.html">📷 Camera Control</a></li>
       <li><a href="auto.html">⚙ Auto Mode</a></li>
       <li><a href="emergency.html">🚨 Emergency</a></li>
       <li><a href="setting.html">⚡ Settings</a></li>
@@ -42,7 +41,11 @@
         <button id="btn-export" class="icon-btn" title="Download CSV">⬇</button>
 
         <span class="notif" id="notif">🔔</span>
-        <span class="user">👤 Admin</span>
+        <!-- Updated user info -->
+        <div class="user-info">
+          <span class="user">👤 {{ username }}</span>
+          <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+        </div>
       </div>
     </header>
 
@@ -129,5 +132,7 @@
 
   <!-- Scripts -->
   <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+
 </body>
 </html>

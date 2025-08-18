@@ -6,6 +6,12 @@
     <title>Auto Mode - Smart Traffic Control</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="static/style.css">
+    <style>
+        .signals { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 20px; }
+        .signal-card { background: white; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .light { width: 30px; height: 30px; border-radius: 50%; margin: 10px auto; }
+        .log { margin-top: 20px; background: #fff; padding: 10px; border-radius: 8px; height: 200px; overflow-y: auto; font-size: 14px; }
+    </style>
 </head>
 <body>
 
@@ -15,7 +21,6 @@
     <ul>
         <li><a href="index.html">📊 Dashboard</a></li>
         <li><a href="camera.html">📷 Camera Control</a></li>
-
         <li class="active"><a href="auto.html">⚙ Auto Mode</a></li>
         <li><a href="emergency.html">🚨 Emergency</a></li>
         <li><a href="setting.html">⚡ Settings</a></li>
@@ -30,9 +35,91 @@
 
     <div class="card">
         <h2>Automatic Traffic Signal Control</h2>
-        <p>Signals will change based on sensor data.</p>
+        <p>Signals will change based on simulated sensor data.</p>
+
+        <!-- Signals -->
+        <div class="signals">
+            <div class="signal-card" id="north">
+                <h3>North</h3>
+                <div class="light" style="background:red"></div>
+                <p class="status">Waiting...</p>
+                <p class="timer">Timer: 0s</p>
+            </div>
+            <div class="signal-card" id="south">
+                <h3>South</h3>
+                <div class="light" style="background:red"></div>
+                <p class="status">Waiting...</p>
+                <p class="timer">Timer: 0s</p>
+            </div>
+            <div class="signal-card" id="east">
+                <h3>East</h3>
+                <div class="light" style="background:red"></div>
+                <p class="status">Waiting...</p>
+                <p class="timer">Timer: 0s</p>
+            </div>
+            <div class="signal-card" id="west">
+                <h3>West</h3>
+                <div class="light" style="background:red"></div>
+                <p class="status">Waiting...</p>
+                <p class="timer">Timer: 0s</p>
+            </div>
+        </div>
+
+        <!-- Event Log -->
+        <div class="log" id="logBox">
+            <b>Event Log:</b><br>
+        </div>
     </div>
 </div>
+
+<script>
+const signals = ['north', 'south', 'east', 'west'];
+let currentIndex = 0;
+let timer = 0;
+let interval;
+
+function logEvent(msg) {
+    const logBox = document.getElementById("logBox");
+    logBox.innerHTML += msg + "<br>";
+    logBox.scrollTop = logBox.scrollHeight;
+}
+
+function updateSignals() {
+    signals.forEach((id, index) => {
+        const card = document.getElementById(id);
+        const light = card.querySelector(".light");
+        const status = card.querySelector(".status");
+        const timerDisplay = card.querySelector(".timer");
+        if (index === currentIndex) {
+            light.style.background = "green";
+            status.textContent = "GO";
+        } else {
+            light.style.background = "red";
+            status.textContent = "STOP";
+        }
+        timerDisplay.textContent = `Timer: ${index === currentIndex ? timer : 0}s`;
+    });
+}
+
+function startCycle() {
+    timer = 10; // green light duration
+    updateSignals();
+    logEvent(`Signal changed to ${signals[currentIndex].toUpperCase()} - GREEN for ${timer}s`);
+    interval = setInterval(() => {
+        timer--;
+        updateSignals();
+        if (timer <= 0) {
+            currentIndex = (currentIndex + 1) % signals.length;
+            clearInterval(interval);
+            startCycle();
+        }
+    }, 1000);
+}
+
+window.onload = () => {
+    startCycle();
+};
+</script>
 
 </body>
 </html>

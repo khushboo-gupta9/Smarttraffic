@@ -263,6 +263,29 @@ if __name__ == '__main__':
             controller.set_emergency(chosen)
         except Exception as e:
             print("[siren] trigger error:", e)
+ # ... (your full code as given above)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+# -------------------- RUN APP --------------------
+if __name__ == '__main__':
+    # 1) traffic controller loop
+    Thread(target=background_controller, daemon=True).start()
+
+    # 2) MIC SIREN LISTENER (auto emergency trigger)
+    def on_siren_detect(direction):
+        if getattr(controller, "emergency_active", False):
+            return
+        chosen = direction or 'North'
+        print(f"[siren] Detected! Triggering emergency on {chosen}")
+        try:
+            controller.set_emergency(chosen)
+        except Exception as e:
+            print("[siren] trigger error:", e)
+
 
     # Start listener; if mic/PyAudio missing, it auto-falls-back to simulation
     Thread(target=start_siren_listener, args=(on_siren_detect,), kwargs={"cooldown": 15}, daemon=True).start()
