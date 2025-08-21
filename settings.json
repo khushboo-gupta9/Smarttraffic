@@ -1,0 +1,9 @@
+{
+  "autoEnabled": true,
+  "useSimulatedSensors": true,
+  "baseGreen": 5,
+  "minGreen": 4,
+  "maxGreen": 5,
+  "yellowTime": 3,
+  "densitySensitivity": 0.6
+}

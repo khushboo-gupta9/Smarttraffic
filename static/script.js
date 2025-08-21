@@ -22,6 +22,53 @@ themeBtn.onclick = () => {
   localStorage.setItem('st_theme', next);
   themeBtn.textContent = next==='dark' ? '☀' : '🌙';
 };
+// ---- add this function near top (after state declaration) ----
+async function initFromServer(){
+  try {
+    const res = await fetch('/get_settings');
+    if (!res.ok) throw new Error('no settings');
+    const s = await res.json();
+    // apply server timing values if present
+    if (s) {
+      state.baseGreen = Number(s.green) || state.baseGreen;
+      state.yellow = Number(s.yellow) || state.yellow;
+      // if you want to use red anywhere: state.red = Number(s.red) || state.red;
+      // apply mode from server
+      if (s.mode) state.mode = s.mode;
+      // update UI pills if needed:
+      ui.greenTime.textContent = state.baseGreen;
+      ui.yellowTime.textContent = state.yellow;
+      // if dashboard open while settings changed in another tab, listen to custom event:
+    }
+  } catch (e){
+    console.warn('Could not fetch settings from server — using local defaults.', e);
+  }
+}
+
+// Listen to settingsUpdated event (dispatched by settings page after save)
+window.addEventListener('settingsUpdated', async () => {
+  await initFromServer();
+  addAlert('Settings updated from Settings page.', 'info');
+});
+
+// Also listen to storage change (in case settings saved in other tab)
+window.addEventListener('storage', (ev) => {
+  if (ev.key === 'trafficSettings') {
+    try {
+      const s = JSON.parse(ev.newValue);
+      if (s) {
+        state.baseGreen = Number(s.green) || state.baseGreen;
+        state.yellow = Number(s.yellow) || state.yellow;
+      }
+    } catch (e){}
+  }
+});
+
+// call initFromServer before starting the loop
+initFromServer().then(()=>{
+  // ensure phase timer uses new baseGreen value
+  phaseEndsAt = Date.now() + effectiveGreenSeconds()*1000;
+});
 
 // ================== Fullscreen ==================
 document.getElementById('btn-fullscreen').onclick = () => {

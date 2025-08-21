@@ -81,6 +81,16 @@ let timerInterval;
 const vehicles = ["Ambulance", "Fire Truck", "Police"];
 const routes = ["North", "East", "South", "West"];
 
+// 🔹 Get saved settings from localStorage
+const settings = JSON.parse(localStorage.getItem("trafficSettings")) || {
+    green: 30,
+    yellow: 5,
+    red: 25,
+    mode: "auto",
+    density: true,
+    siren: true
+};
+
 function getVehicleIcon(type) {
     switch(type) {
         case "Ambulance": return "🚑";
@@ -119,9 +129,8 @@ function logEvent(message) {
 }
 
 function updateSignals(priority) {
-    const directions = ["North", "East", "South", "West"];
     let statusHTML = "";
-    directions.forEach(dir => {
+    routes.forEach(dir => {
         if (dir === priority) {
             statusHTML += `<div class="signal green">${dir}: Green</div>`;
         } else {
@@ -140,28 +149,30 @@ function resetSignals() {
 }
 
 function playSiren() {
-    const audio = new Audio('static/siren.mp3');
-    audio.play();
+    if (settings.siren) { // ✅ Only play if siren detection is enabled
+        const audio = new Audio('static/siren.mp3');
+        audio.play();
+    }
 }
 
 function detectEmergency() {
     const type = vehicles[Math.floor(Math.random() * vehicles.length)];
     const route = routes[Math.floor(Math.random() * routes.length)];
-    const eta = "ETA: 30s";
+    const eta = "ETA: " + settings.green + "s"; // ✅ Use green time from settings
 
     playSiren();
     addVehicle(type, route + " Road", eta);
     updateSignals(route);
     logEvent(`Emergency Mode Activated - ${type} detected at ${route} Road`);
 
-    startCountdown(30, () => {
+    startCountdown(settings.green, () => {   // ✅ Countdown uses green time
         logEvent("Emergency Mode Deactivated");
         resetSignals();
     });
 }
 
-// Voice Detection
-if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+// 🔹 Voice Detection (only if enabled in settings)
+if (settings.siren && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
@@ -187,18 +198,18 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
     recognition.start();
 } else {
-    console.warn("Browser does not support voice recognition. Using automatic detection.");
+    console.warn("Voice detection disabled or not supported.");
 }
 
-// Fallback random detection
-setInterval(() => {
-    detectEmergency();
-}, 40000);
+// 🔹 Auto random detection (only if Auto mode is ON)
+if (settings.mode === "auto") {
+    setInterval(() => {
+        detectEmergency();
+    }, (settings.red + settings.green + settings.yellow) * 1000);
 
-setTimeout(() => {
-    detectEmergency();
-}, 5000);
+    setTimeout(() => {
+        detectEmergency();
+    }, 5000);
+}
 </script>
-
 </body>
-</html>

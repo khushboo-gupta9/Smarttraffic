@@ -22,6 +22,16 @@ capture_counter = 1
 # Haar cascade for face detection (OpenCV)
 FACE_CASCADE = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
+# -------------------- Server-side settings store --------------------
+# This dictionary stores current timings and other settings.
+traffic_settings = {
+    "green": 15,
+    "yellow": 3,
+    "red": 18,
+    "mode": "auto",
+    "density_sensor": True,
+    "siren_sensor": True
+}
 
 # -------------------- Background Controller Thread --------------------
 def background_controller():
@@ -29,14 +39,12 @@ def background_controller():
     while True:
         try:
             if controller.mode == 'auto':
-                # auto mode cycles normally; emergency is now triggered by mic listener
                 controller.auto_cycle()
             elif controller.mode == 'emergency':
                 controller.handle_emergency()
         except Exception as e:
             print("[controller-loop] error:", e)
         time.sleep(1)
-
 
 # -------------------- Routes (login, pages) --------------------
 @app.route('/', methods=['GET', 'POST'])
@@ -97,33 +105,107 @@ def settings():
         return redirect(url_for('login'))
     return render_template('setting.html', username=session['user'])
 
-
 # -------------------- API ROUTES (controller) --------------------
 @app.route('/get_status')
 def get_status():
     """Return live controller status (mode, active direction, timers, etc.)."""
-    return jsonify(controller.get_status())
+    try:
+        status = controller.get_status()
+    except Exception:
+        status = {}
+    # Merge in server-side traffic_settings for a consistent client view
+    merged = {
+        "controller_status": status,
+        "settings": traffic_settings
+    }
+    return jsonify(merged)
+
+# New: return just saved settings (simple)
+@app.route('/get_settings', methods=['GET'])
+def get_settings():
+    return jsonify(traffic_settings)
+
+# Save multiple settings in one call
+@app.route('/save_settings', methods=['POST'])
+def save_settings():
+    global traffic_settings
+    data = request.get_json(force=True, silent=True) or {}
+    # Validate and set
+    try:
+        g = int(data.get('green', traffic_settings['green']))
+        y = int(data.get('yellow', traffic_settings['yellow']))
+        r = int(data.get('red', traffic_settings['red']))
+    except Exception:
+        return jsonify({"status": "error", "message": "Invalid timing values"}), 400
+
+    traffic_settings['green'] = max(1, g)
+    traffic_settings['yellow'] = max(1, y)
+    traffic_settings['red'] = max(1, r)
+    traffic_settings['mode'] = data.get('mode', traffic_settings['mode'])
+    traffic_settings['density_sensor'] = bool(data.get('density', traffic_settings['density_sensor']))
+    traffic_settings['siren_sensor'] = bool(data.get('siren', traffic_settings['siren_sensor']))
+
+    # Try to update controller runtime config if possible
+    try:
+        # If controller exposes a setter for green timer, call it
+        if hasattr(controller, 'set_timer'):
+            controller.set_timer(int(traffic_settings['green']))
+        # Attempt best-effort attribute setting for yellow/red if controller supports them
+        if hasattr(controller, 'yellow'):
+            setattr(controller, 'yellow', int(traffic_settings['yellow']))
+        else:
+            # safe fallback: try set_yellow method
+            if hasattr(controller, 'set_yellow'):
+                controller.set_yellow(int(traffic_settings['yellow']))
+        if hasattr(controller, 'red'):
+            setattr(controller, 'red', int(traffic_settings['red']))
+        else:
+            if hasattr(controller, 'set_red'):
+                controller.set_red(int(traffic_settings['red']))
+        # Update mode on controller too if setter exists
+        if hasattr(controller, 'set_mode'):
+            controller.set_mode(traffic_settings['mode'])
+    except Exception as e:
+        print("[save_settings] controller update warning:", e)
+
+    return jsonify({"status": "ok", "message": "Settings saved", "settings": traffic_settings})
 
 @app.route('/set_mode', methods=['POST'])
 def set_mode():
     data = request.get_json(force=True, silent=True) or {}
-    controller.set_mode(data.get('mode', 'auto'))
+    mode = data.get('mode', 'auto')
+    traffic_settings['mode'] = mode
+    try:
+        controller.set_mode(mode)
+    except Exception as e:
+        print("[set_mode] warning:", e)
     return jsonify({'status': 'ok'})
 
 @app.route('/set_timer', methods=['POST'])
 def set_timer():
     data = request.get_json(force=True, silent=True) or {}
-    controller.set_timer(int(data.get('time', 15)))
+    try:
+        t = int(data.get('time', traffic_settings['green']))
+    except Exception:
+        return jsonify({'status':'error','message':'invalid time'}),400
+    traffic_settings['green'] = t
+    try:
+        if hasattr(controller, 'set_timer'):
+            controller.set_timer(t)
+    except Exception as e:
+        print("[set_timer] warning:", e)
     return jsonify({'status': 'ok'})
 
 @app.route('/start', methods=['POST'])
 def start():
     controller.set_mode("auto")
+    traffic_settings['mode'] = 'auto'
     return jsonify({'status': 'started'})
 
 @app.route('/stop', methods=['POST'])
 def stop():
     controller.set_mode("manual")
+    traffic_settings['mode'] = 'manual'
     return jsonify({'status': 'stopped'})
 
 # Manual test trigger (useful if mic not available)
@@ -134,19 +216,13 @@ def emergency_trigger():
     controller.set_emergency(direction)
     return jsonify({'status': 'triggered', 'direction': direction})
 
-
 # -------------------- Serve saved images --------------------
 @app.route('/captured_images/<path:filename>')
 def serve_captured_image(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
 
-
 # -------------------- Utility: create mock driving license image --------------------
 def create_mock_license(face_img_path, username_hint="Unknown"):
-    """
-    Creates a demo/mock driving license image using the saved face image.
-    Returns the generated filename (relative to UPLOAD_FOLDER).
-    """
     name = username_hint if username_hint else "Demo User"
     dl_no = "DL" + datetime.now().strftime("%m%d%H%M%S")
     dob = (datetime.now() - timedelta(days=25*365)).strftime("%d/%m/%Y")
@@ -190,7 +266,6 @@ def create_mock_license(face_img_path, username_hint="Unknown"):
     license_path = os.path.join(UPLOAD_FOLDER, secure_filename(license_filename))
     card.save(license_path)
     return os.path.basename(license_path)
-
 
 # -------------------- SAVE IMAGE route (accept base64 from frontend) --------------------
 @app.route('/save_image', methods=['POST'])
@@ -241,30 +316,6 @@ def save_image():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
-# -------------------- RUN APP --------------------
-if __name__ == '__main__':
-    # 1) traffic controller loop
-    Thread(target=background_controller, daemon=True).start()
-
-    # 2) MIC SIREN LISTENER (auto emergency trigger)
-    def on_siren_detect(direction):
-        """
-        Callback jab siren detect ho: direction choose karke emergency trigger.
-        Direction yahan tum chaaho to density-based choose kar sakte ho.
-        """
-        # If already in emergency, ignore duplicate triggers
-        if getattr(controller, "emergency_active", False):
-            return
-        # Choose a direction (you can make it smarter)
-        chosen = direction or 'North'
-        print(f"[siren] Detected! Triggering emergency on {chosen}")
-        try:
-            controller.set_emergency(chosen)
-        except Exception as e:
-            print("[siren] trigger error:", e)
- # ... (your full code as given above)
-
 @app.route('/logout')
 def logout():
     session.clear()
@@ -285,7 +336,6 @@ if __name__ == '__main__':
             controller.set_emergency(chosen)
         except Exception as e:
             print("[siren] trigger error:", e)
-
 
     # Start listener; if mic/PyAudio missing, it auto-falls-back to simulation
     Thread(target=start_siren_listener, args=(on_siren_detect,), kwargs={"cooldown": 15}, daemon=True).start()
