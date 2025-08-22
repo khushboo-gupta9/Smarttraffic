@@ -1,4 +1,4 @@
-// ================== Clock ==================
+// ================== Clock ================== 
 const dateEl = document.querySelector('.date');
 const timeEl = document.querySelector('.time');
 function tickClock(){
@@ -22,59 +22,6 @@ themeBtn.onclick = () => {
   localStorage.setItem('st_theme', next);
   themeBtn.textContent = next==='dark' ? '☀' : '🌙';
 };
-// ---- add this function near top (after state declaration) ----
-async function initFromServer(){
-  try {
-    const res = await fetch('/get_settings');
-    if (!res.ok) throw new Error('no settings');
-    const s = await res.json();
-    // apply server timing values if present
-    if (s) {
-      state.baseGreen = Number(s.green) || state.baseGreen;
-      state.yellow = Number(s.yellow) || state.yellow;
-      // if you want to use red anywhere: state.red = Number(s.red) || state.red;
-      // apply mode from server
-      if (s.mode) state.mode = s.mode;
-      // update UI pills if needed:
-      ui.greenTime.textContent = state.baseGreen;
-      ui.yellowTime.textContent = state.yellow;
-      // if dashboard open while settings changed in another tab, listen to custom event:
-    }
-  } catch (e){
-    console.warn('Could not fetch settings from server — using local defaults.', e);
-  }
-}
-
-// Listen to settingsUpdated event (dispatched by settings page after save)
-window.addEventListener('settingsUpdated', async () => {
-  await initFromServer();
-  addAlert('Settings updated from Settings page.', 'info');
-});
-
-// Also listen to storage change (in case settings saved in other tab)
-window.addEventListener('storage', (ev) => {
-  if (ev.key === 'trafficSettings') {
-    try {
-      const s = JSON.parse(ev.newValue);
-      if (s) {
-        state.baseGreen = Number(s.green) || state.baseGreen;
-        state.yellow = Number(s.yellow) || state.yellow;
-      }
-    } catch (e){}
-  }
-});
-
-// call initFromServer before starting the loop
-initFromServer().then(()=>{
-  // ensure phase timer uses new baseGreen value
-  phaseEndsAt = Date.now() + effectiveGreenSeconds()*1000;
-});
-
-// ================== Fullscreen ==================
-document.getElementById('btn-fullscreen').onclick = () => {
-  if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-  else document.exitFullscreen();
-};
 
 // ================== State ==================
 const state = {
@@ -83,6 +30,7 @@ const state = {
   directions: ['North','East','South','West'],
   baseGreen: 15,
   yellow: 3,
+  red: 18,
   weather: 'Clear',
   emergencyActive: false,
   emergencyEndsAt: 0,
@@ -118,6 +66,69 @@ const ui = {
     s: document.getElementById('arrow-s'),
     w: document.getElementById('arrow-w'),
   }
+};
+
+// ================== Settings Fetch ==================
+async function initFromServer(){
+  try {
+    const res = await fetch('/get_settings');
+    if (!res.ok) throw new Error('no settings');
+    const s = await res.json();
+    if (s) {
+      state.baseGreen = Number(s.green) || state.baseGreen;
+      state.yellow = Number(s.yellow) || state.yellow;
+      state.red = Number(s.red) || state.red;
+      if (s.mode) state.mode = s.mode;
+
+      ui.greenTime.textContent = state.baseGreen;
+      ui.yellowTime.textContent = state.yellow;
+      ui.redTime.textContent = state.red;
+    }
+  } catch (e){
+    console.warn('Could not fetch settings from server — using local defaults.', e);
+    const ls = localStorage.getItem("trafficSettings");
+    if (ls){
+      const s = JSON.parse(ls);
+      state.baseGreen = Number(s.green) || state.baseGreen;
+      state.yellow = Number(s.yellow) || state.yellow;
+      state.red = Number(s.red) || state.red;
+      ui.greenTime.textContent = state.baseGreen;
+      ui.yellowTime.textContent = state.yellow;
+      ui.redTime.textContent = state.red;
+    }
+  }
+}
+
+// Custom event listener (settings page dispatches it after save)
+window.addEventListener('settingsUpdated', async () => {
+  await initFromServer();
+  resetTrafficCycle();
+  addAlert('Settings updated from Settings page.', 'info');
+});
+
+// Storage sync (multi-tab support)
+window.addEventListener('storage', (ev) => {
+  if (ev.key === 'trafficSettings') {
+    try {
+      const s = JSON.parse(ev.newValue);
+      if (s) {
+        state.baseGreen = Number(s.green) || state.baseGreen;
+        state.yellow = Number(s.yellow) || state.yellow;
+        state.red = Number(s.red) || state.red;
+        ui.greenTime.textContent = state.baseGreen;
+        ui.yellowTime.textContent = state.yellow;
+        ui.redTime.textContent = state.red;
+        resetTrafficCycle();
+        addAlert('Settings synced from another tab.', 'info');
+      }
+    } catch (e){}
+  }
+});
+
+// ================== Fullscreen ==================
+document.getElementById('btn-fullscreen').onclick = () => {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+  else document.exitFullscreen();
 };
 
 // ================== Helpers ==================
@@ -207,74 +218,62 @@ function checkEmergencyTimeout(){
 }
 setInterval(checkEmergencyTimeout, 500);
 
-// ================== Signal Timing ==================
-let phaseEndsAt = Date.now() + 15000;
-let phase = 'green';
+// ================== Traffic Light Simulation ==================
+let currentLight = "green";
+let timeLeft = state.baseGreen;
+let timer;
 
-function effectiveGreenSeconds(){
-  let g = state.baseGreen;
-  if (isPeakHour()) g = Math.round(g*1.2);
-  g = Math.round(g * weatherImpactFactor(state.weather));
-  return Math.max(8, Math.min(45, g));
+function loadTrafficSettingsDynamic() {
+  const settings = JSON.parse(localStorage.getItem("trafficSettings"));
+  if (settings) {
+    state.baseGreen = Number(settings.green) || state.baseGreen;
+    state.yellow = Number(settings.yellow) || state.yellow;
+    state.red = Number(settings.red) || state.red;
+
+    // update UI
+    ui.greenTime.textContent = state.baseGreen;
+    ui.yellowTime.textContent = state.yellow;
+    ui.redTime.textContent = state.red;
+  }
 }
 
-function setLights(which){
+function updateTrafficCountdown() {
+  ui.countdown.textContent = `0:${timeLeft < 10 ? '0' : ''}${timeLeft}`;
+  timeLeft--;
+  if (timeLeft < 0) switchLight();
+}
+
+function switchLight() {
   ui.lights.red.classList.remove('active');
   ui.lights.yellow.classList.remove('active');
   ui.lights.green.classList.remove('active');
-  if (which==='red') ui.lights.red.classList.add('active');
-  if (which==='yellow') ui.lights.yellow.classList.add('active');
-  if (which==='green') ui.lights.green.classList.add('active');
-}
 
-function setActiveArrow(){
-  const map = {0:'n',1:'e',2:'s',3:'w'};
-  Object.values(ui.arrows).forEach(a=>a.classList.remove('active-arrow'));
-  ui.arrows[map[state.directionIndex]].classList.add('active-arrow');
-}
-
-function nextDirection(){
-  state.directionIndex = (state.directionIndex+1) % 4;
-  ui.dir.textContent = state.directions[state.directionIndex];
-  setActiveArrow();
-}
-
-function updateSignalLoop(){
-  if (state.mode==='manual' && !state.emergencyActive){
-    requestAnimationFrame(updateSignalLoop);
-    return;
+  if (currentLight === 'green') {
+    currentLight = 'yellow';
+    timeLeft = state.yellow;
+    ui.lights.yellow.classList.add('active');
+  } else if (currentLight === 'yellow') {
+    currentLight = 'red';
+    timeLeft = state.red;
+    ui.lights.red.classList.add('active');
+  } else {
+    currentLight = 'green';
+    timeLeft = state.baseGreen;
+    ui.lights.green.classList.add('active');
   }
-  const now = Date.now();
-  const remain = Math.max(0, Math.ceil((phaseEndsAt - now)/1000));
-  ui.countdown.textContent = `${Math.floor(remain/60)}:${String(remain%60).padStart(2,'0')}`;
-
-  if (phase==='green'){
-    setLights('green');
-    const g = effectiveGreenSeconds();
-    ui.greenTime.textContent = g;
-    ui.yellowTime.textContent = state.yellow;
-    ui.redTime.textContent = g + state.yellow;
-
-    if (state.emergencyActive) phaseEndsAt = state.emergencyEndsAt;
-    if (now >= phaseEndsAt){
-      phase = 'yellow';
-      phaseEndsAt = now + state.yellow*1000;
-    }
-  } else if (phase==='yellow'){
-    setLights('yellow');
-    if (now >= phaseEndsAt){
-      phase = 'green';
-      nextDirection();
-      const g = effectiveGreenSeconds();
-      phaseEndsAt = now + g*1000;
-    }
-  }
-  ui.peakPill.innerHTML = `⏫ Peak Hour: <b>${isPeakHour()?'On':'Auto'}</b>`;
-  requestAnimationFrame(updateSignalLoop);
 }
-phaseEndsAt = Date.now() + effectiveGreenSeconds()*1000;
-setActiveArrow();
-updateSignalLoop();
+
+function resetTrafficCycle() {
+  clearInterval(timer);
+  loadTrafficSettingsDynamic();
+  currentLight = 'green';
+  timeLeft = state.baseGreen;
+  ui.lights.green.classList.add('active');
+  timer = setInterval(updateTrafficCountdown, 1000);
+}
+
+// Initial start
+resetTrafficCycle();
 
 // ================== Buttons ==================
 ui.btnAuto.onclick = ()=>{ state.mode='auto'; addAlert('Switched to Auto mode.', 'info'); };
@@ -283,7 +282,6 @@ ui.btnEmergency.onclick = ()=>{ triggerPriorityVehicle(state.directions[state.di
 
 // ================== Charts ==================
 let densityChart, predictChart;
-
 function buildDensityChart(){
   const ctx = document.getElementById('densityChart').getContext('2d');
   densityChart = new Chart(ctx, {
@@ -305,7 +303,6 @@ function updateDensityChart(){
   densityChart.data.datasets[0].data = state.density.slice();
   densityChart.update();
 }
-
 function predictNext10(history){
   const h = history.length ? history : [8,10,12,11,9,10];
   const last = h[h.length-1];

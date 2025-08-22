@@ -41,7 +41,6 @@
         <button id="btn-export" class="icon-btn" title="Download CSV">⬇</button>
 
         <span class="notif" id="notif">🔔</span>
-        <!-- Updated user info -->
         <div class="user-info">
           <span class="user">👤 {{ username }}</span>
           <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
@@ -99,13 +98,10 @@
 
       <div class="card">
         <h2>Mini Map View</h2>
-        <!-- Simple SVG intersection map -->
         <div class="mini-map">
           <svg viewBox="0 0 200 200">
-            <!-- Roads -->
             <rect x="90" y="0" width="20" height="200" class="road"/>
             <rect x="0" y="90" width="200" height="20" class="road"/>
-            <!-- Direction arrows -->
             <polygon id="arrow-n" points="100,20 95,35 105,35" class="arrow"/>
             <polygon id="arrow-e" points="180,100 165,95 165,105" class="arrow"/>
             <polygon id="arrow-s" points="100,180 95,165 105,165" class="arrow"/>
@@ -132,7 +128,5 @@
 
   <!-- Scripts -->
   <script src="{{ url_for('static', filename='script.js') }}"></script>
-
-
 </body>
 </html>

@@ -17,6 +17,7 @@
     }
     .setting-section { margin-bottom: 20px; }
     .setting-section h3 { margin-bottom: 10px; }
+    input, select { width: 80px; padding: 5px; margin-bottom: 10px; }
     button {
       padding: 10px 16px;
       border-radius: 10px;
@@ -38,7 +39,6 @@
     <li><a href="{{ url_for('manual') }}">📷 Camera Control</a></li>
     <li><a href="{{ url_for('auto') }}">⚙ Auto Mode</a></li>
     <li><a href="{{ url_for('emergency') }}">🚨 Emergency</a></li>
-    <li><a href="{{ url_for('manual') }}">📷 Camera</a></li>
     <li class="active"><a href="{{ url_for('settings') }}">⚡ Settings</a></li>
   </ul>
 </nav>
@@ -56,11 +56,11 @@
     <div class="setting-section">
       <h3>⏱ Signal Timings</h3>
       <label>Green Duration (sec):</label>
-      <input type="number" id="green-time" value="30"><br>
+      <input type="number" id="green-time"><br>
       <label>Yellow Duration (sec):</label>
-      <input type="number" id="yellow-time" value="5"><br>
+      <input type="number" id="yellow-time"><br>
       <label>Red Duration (sec):</label>
-      <input type="number" id="red-time" value="25">
+      <input type="number" id="red-time">
     </div>
 
     <div class="setting-section">
@@ -74,8 +74,8 @@
 
     <div class="setting-section">
       <h3>🔧 Sensors</h3>
-      <label><input type="checkbox" id="density-sensor" checked> Enable Density Sensor</label><br>
-      <label><input type="checkbox" id="siren-sensor" checked> Enable Siren Detection</label>
+      <label><input type="checkbox" id="density-sensor"> Enable Density Sensor</label><br>
+      <label><input type="checkbox" id="siren-sensor"> Enable Siren Detection</label>
     </div>
 
     <button onclick="saveSettings()">💾 Save & Apply</button>
@@ -83,7 +83,30 @@
 </div>
 
 <script>
-  async function saveSettings() {
+  // Load previous settings
+  function loadSettings() {
+    const saved = JSON.parse(localStorage.getItem("trafficSettings"));
+    if (saved) {
+      document.getElementById("green-time").value = saved.green;
+      document.getElementById("yellow-time").value = saved.yellow;
+      document.getElementById("red-time").value = saved.red;
+      document.getElementById("default-mode").value = saved.mode;
+      document.getElementById("density-sensor").checked = saved.density;
+      document.getElementById("siren-sensor").checked = saved.siren;
+    } else {
+      // default values
+      document.getElementById("green-time").value = 15;
+      document.getElementById("yellow-time").value = 5;
+      document.getElementById("red-time").value = 20;
+      document.getElementById("default-mode").value = "auto";
+      document.getElementById("density-sensor").checked = true;
+      document.getElementById("siren-sensor").checked = true;
+    }
+  }
+
+  loadSettings();
+
+  function saveSettings() {
     const settings = {
       green: parseInt(document.getElementById("green-time").value),
       yellow: parseInt(document.getElementById("yellow-time").value),
@@ -93,46 +116,25 @@
       siren: document.getElementById("siren-sensor").checked
     };
 
-    try {
-      const res = await fetch("/save_settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings)
-      });
-      const data = await res.json();
-      if (data.status === "ok") {
-        // Save locally (optional)
-        localStorage.setItem("trafficSettings", JSON.stringify(settings));
-        alert("✅ Settings applied successfully!");
+    // Save in localStorage
+    localStorage.setItem("trafficSettings", JSON.stringify(settings));
 
-        // Notify other tabs/pages (if dashboard open) via storage event
-        window.dispatchEvent(new Event('settingsUpdated'));
-      } else {
-        alert("❌ Failed to save settings: " + (data.message || "server error"));
-      }
-    } catch (err) {
+    // Dispatch custom event so other tabs can react
+    window.dispatchEvent(new Event('storage')); 
+
+    // Optionally send to server (Flask)
+    fetch("/update_timing", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(settings)
+    })
+    .then(res => res.json())
+    .then(data => alert("✅ Settings saved! Dashboard updated."))
+    .catch(err => {
       console.error(err);
-      alert("❌ Failed to apply settings. Check server logs.");
-    }
+      alert("❌ Failed to save on server.");
+    });
   }
-
-  // Populate current settings on page load
-  (async function loadCurrentSettings(){
-    try {
-      const res = await fetch("/get_settings");
-      const s = await res.json();
-      if (s) {
-        document.getElementById("green-time").value = s.green || 30;
-        document.getElementById("yellow-time").value = s.yellow || 3;
-        document.getElementById("red-time").value = s.red || 18;
-        document.getElementById("default-mode").value = s.mode || 'auto';
-        document.getElementById("density-sensor").checked = !!s.density_sensor;
-        document.getElementById("siren-sensor").checked = !!s.siren_sensor;
-      }
-    } catch(e){
-      console.warn("Could not load server settings:", e);
-    }
-  })();
 </script>
 
 </body>
